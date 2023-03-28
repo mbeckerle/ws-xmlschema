@@ -33,6 +33,7 @@ import javax.xml.namespace.NamespaceContext;
 import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilderFactory;
 
+import org.apache.ws.commons.schema.utils.Loc;
 import org.w3c.dom.Attr;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -76,6 +77,9 @@ public class SchemaBuilder {
     DocumentBuilderFactory docFac;
 
     private final TargetNamespaceValidator currentValidator;
+
+    private final HashMap<Element, Loc> elementLocators;
+
     /**
      * The extension registry to be used while building the schema model
      */
@@ -93,9 +97,10 @@ public class SchemaBuilder {
      * @param collection
      * @param validator
      */
-    SchemaBuilder(XmlSchemaCollection collection, TargetNamespaceValidator validator) {
+    public SchemaBuilder(XmlSchemaCollection collection, TargetNamespaceValidator validator, HashMap<Element, Loc> elementLocators) {
         this.collection = collection;
         this.currentValidator = validator;
+        this.elementLocators = elementLocators;
 
         if (collection.getExtReg() != null) {
             this.extReg = collection.getExtReg();
@@ -149,7 +154,7 @@ public class SchemaBuilder {
      * @param doc
      * @param uri
      */
-    XmlSchema build(Document doc, String uri) {
+    public XmlSchema build(Document doc, String uri) {
         Element schemaEl = doc.getDocumentElement();
         XmlSchema xmlSchema = handleXmlSchemaElement(schemaEl, uri);
         xmlSchema.setInputEncoding(doc.getInputEncoding());
@@ -385,7 +390,14 @@ public class SchemaBuilder {
     XmlSchemaElement handleElement(XmlSchema schema, Element el, Element schemaEl, boolean isGlobal) {
 
         XmlSchemaElement element = new XmlSchemaElement(schema, isGlobal);
-
+        if (elementLocators != null) {
+            Loc l = elementLocators.get(el);
+            if (l != null) {
+                element.setLineNumber(l.line);
+                element.setLinePosition(l.col);
+                element.setSourceURI(l.uri.toString());
+            }
+        }
         if (el.getAttributeNode("name") != null) {
             element.setName(el.getAttribute("name"));
         }
