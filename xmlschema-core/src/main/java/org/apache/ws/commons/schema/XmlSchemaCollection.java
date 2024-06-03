@@ -505,7 +505,7 @@ public final class XmlSchemaCollection {
      * @return the schema object.
      */
     public XmlSchema read(Document doc, String systemId, TargetNamespaceValidator validator) {
-        SchemaBuilder builder = new SchemaBuilder(this, validator);
+        SchemaBuilder builder = new SchemaBuilder(this, validator, null);
         XmlSchema schema = builder.build(doc, systemId);
         schema.setInputEncoding(doc.getInputEncoding());
         return schema;
@@ -520,7 +520,7 @@ public final class XmlSchemaCollection {
      * @return the XML schema object.
      */
     public XmlSchema read(Document doc) {
-        SchemaBuilder builder = new SchemaBuilder(this, null);
+        SchemaBuilder builder = new SchemaBuilder(this, null, null);
         return builder.build(doc, null);
     }
 
@@ -532,7 +532,7 @@ public final class XmlSchemaCollection {
      * @return the XmlSchema
      */
     public XmlSchema read(Element elem) {
-        SchemaBuilder builder = new SchemaBuilder(this, null);
+        SchemaBuilder builder = new SchemaBuilder(this, null, null);
         XmlSchema xmlSchema = builder.handleXmlSchemaElement(elem, null);
         xmlSchema.setInputEncoding(elem.getOwnerDocument().getXmlEncoding());
         return xmlSchema;
@@ -547,7 +547,7 @@ public final class XmlSchemaCollection {
      * @return the schema object.
      */
     public XmlSchema read(Element elem, String systemId) {
-        SchemaBuilder builder = new SchemaBuilder(this, null);
+        SchemaBuilder builder = new SchemaBuilder(this, null, null);
         XmlSchema xmlSchema = builder.handleXmlSchemaElement(elem, systemId);
         xmlSchema.setInputEncoding(elem.getOwnerDocument().getInputEncoding());
         return xmlSchema;

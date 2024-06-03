@@ -19,26 +19,28 @@
 
 package org.apache.ws.commons.schema.docpath;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.*;
 
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.*;
 
+import org.apache.ws.commons.schema.SchemaBuilder;
 import org.apache.ws.commons.schema.XmlSchemaCollection;
+import org.apache.ws.commons.schema.XmlSchema;
 import org.apache.ws.commons.schema.XmlSchemaElement;
 import org.apache.ws.commons.schema.constants.Constants;
+import org.apache.ws.commons.schema.resolver.URIResolver;
+import org.apache.ws.commons.schema.utils.Loc;
 import org.apache.ws.commons.schema.walker.XmlSchemaAttrInfo;
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.Attributes;
+import org.xml.sax.Locator;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
@@ -47,6 +49,61 @@ import org.xml.sax.helpers.DefaultHandler;
  * walk.
  */
 public final class DomBuilderFromSax extends DefaultHandler {
+
+    /**
+     * Constructs an XmlSchemaCollection from a SAX InputSource, and captures
+     * line numbers, line positions, and systemIds for all XmlSchemaElement objects.
+     * <p/>
+     * Note: this is only in this class because otherwise the dependency
+     * of the walker package on the core package would have to be inverted.
+     *
+     * @param saxSource - A SAX InputSource
+     * @param systemId - URI associated with the InputSource
+     * @return an XmlSchemaCollection for all included/imported schemas.
+     * @throws ParserConfigurationException
+     * @throws SAXException
+     * @throws IOException
+     */
+    public static XmlSchemaCollection read(
+            org.xml.sax.InputSource saxSource,
+            String systemId,
+            URIResolver resolver)
+            throws ParserConfigurationException, SAXException, IOException {
+        XmlSchemaCollection xmlSchemas = new XmlSchemaCollection();
+        xmlSchemas.setSchemaResolver(resolver);
+        //
+        // The DomBuilderFromSax has been enhanced to capture the
+        // SAX Locator information into a separate hash table that associates
+        // DOM Elements with Loc objects.
+        //
+        final DomBuilderFromSax domBuilder = new DomBuilderFromSax(xmlSchemas);
+        final SAXParserFactory spf = SAXParserFactory.newInstance();
+        spf.setNamespaceAware(true);
+        final SAXParser saxParser = spf.newSAXParser();
+        saxParser.parse(saxSource, domBuilder);
+        final Document actualSchema = domBuilder.getDocument();
+        final HashMap<Element, Loc> elementLocators = domBuilder.getElementLocators();
+        //
+        // The SchemaBuilder has been modified to use the elementLocators
+        // and to call the setLineNumber() and friends for XmlSchemaElement
+        //
+        SchemaBuilder builder = new SchemaBuilder(xmlSchemas, null, elementLocators);
+        XmlSchema schema = builder.build(actualSchema, systemId);
+        schema.setInputEncoding(actualSchema.getInputEncoding());
+        return xmlSchemas;
+    }
+
+    private Locator locator;
+    public void setDocumentLocator(Locator locator) {
+        this.locator = locator;
+    }
+
+    // LinkedHashMap is preferred so that we get deterministic behavior if we convert the
+    // hash map to a list/sequence.
+    private final LinkedHashMap<Element, Loc> elementLocators = new LinkedHashMap<>();
+    public LinkedHashMap<Element, Loc> getElementLocators() {
+        return elementLocators;
+    }
 
     private static final String XSI_NS = "http://www.w3.org/2001/XMLSchema-instance";
     private static final String XSI_SCHEMALOC = "schemaLocation";
@@ -136,6 +193,19 @@ public final class DomBuilderFromSax extends DefaultHandler {
         addContentToCurrentElement(false);
 
         final Element element = document.createElementNS((uri.length() == 0) ? null : uri, qName);
+        final String sysId = locator.getSystemId();
+        URI sourceURI;
+        if (sysId == null) {
+            sourceURI = null;
+        } else {
+            try {
+                sourceURI = new URI(sysId);
+            } catch (URISyntaxException e) {
+                sourceURI = null;
+            }
+        }
+        final Loc loc = new Loc(locator.getLineNumber(), locator.getColumnNumber(), sourceURI);
+        elementLocators.put(element, loc);
 
         // Define New Prefixes
         for (String newPrefix : newPrefixes) {
